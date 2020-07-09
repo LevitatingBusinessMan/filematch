@@ -56,6 +56,59 @@ fn main() {
 
 }
 
+#[derive(Debug)]
+struct Md5Entry {
+    path: String,
+    md5sum: String
+}
+
+/*  fn lookup_(checklist: &String, dir: &String) {
+    let checklist = Path::new(checklist);
+    let path = Path::new(dir);
+
+    if !checklist.exists() {
+        println!("File {} does not exist", dir);
+        std::process::exit(1);
+    }
+
+    if !path.exists() {
+        println!("File {} does not exist", dir);
+        std::process::exit(1);
+    }
+
+    if !checklist.is_file() {
+        println!("{} is a directory", dir);
+        std::process::exit(1);
+    }
+
+    let checklist = get_checklist(path).collect();
+
+} */
+
+fn get_checklist<P: AsRef<Path>>(path: P) -> impl Iterator<Item = Md5Entry> {
+
+    let f = File::open(path).expect("Error opening file");
+    let f = io::BufReader::new(f);
+    
+    f.lines().map(|line| {
+        let line = line.unwrap();
+        let line_split: Vec<&str> = line.split_whitespace().collect();
+        
+        if line_split.len() != 2 {
+            println!("Invalid checksum file");
+            std::process::exit(1);
+        }
+
+        let old_checksum = line_split[0];
+        let file = line_split[1];
+
+        Md5Entry {
+            path: file.to_string(),
+            md5sum: old_checksum.to_string()
+        }
+    })
+}
+
 fn check_mode(dir: &String) {
     let path = Path::new(dir);
     
@@ -69,23 +122,11 @@ fn check_mode(dir: &String) {
         std::process::exit(1);
     }
     
-    let f = File::open(path).expect("Error opening file");
-    let f = io::BufReader::new(f);
+    for checksum in get_checklist(path) {
+        let old_checksum = checksum.md5sum;
+        let file = checksum.path;
 
-    for line in f.lines() {
-        let line = line.unwrap();
-        
-        let line_split: Vec<&str> = line.split_whitespace().collect();
-        
-        if line_split.len() != 2 {
-            println!("Invalid checksum file");
-            std::process::exit(1);
-        }
-
-        let old_checksum = line_split[0];
-        let file = line_split[1];
-
-        let new_checksum = md5_file(file).unwrap();
+        let new_checksum = md5_file(&file).unwrap();
         
         if old_checksum != new_checksum {
             println!("{} ({} -> {})", file, old_checksum, new_checksum);
