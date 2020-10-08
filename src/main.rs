@@ -3,9 +3,11 @@ Behavior:
 When single dir or file is given, return md5sums of all files.
 When 2 dirs or files are given, compare with builtin function
 When --check is used on a file, assume that file to be a checksum listing and match it
-There should also be a way to go to a directory, then use a checksum list like a lookup table.
+There should also be a way to go to a directory, then use a checksum list like a lookup table. (--tgt folder?)
 This ensures that you will also list any deleted or created directories.
 */
+
+//TODO: relative paths
 
 use std::env;
 use std::path::Path;
@@ -14,6 +16,8 @@ use std::fs::File;
 use std::io::Read;
 use md5::{Md5, Digest};
 use std::io::BufRead;
+use std::collections::HashMap;
+use pathdiff::diff_paths;
 
 fn main() {
     //let args: Vec<String> = env::args().skip(1).collect();
@@ -34,11 +38,6 @@ fn main() {
         std::process::exit(1);
     }
 
-    if args.len() > 2 {
-        println!("Filematch currently only supports 2 directories to be compared");
-        std::process::exit(1);
-    }
-
     //This isn't actually used yet, will prob get removed later
     //Instead this vector will only get filled when reading existing checksum lists, then used as an iter.
     //let md5s = Vec::new();
@@ -54,6 +53,13 @@ fn main() {
         check_mode(&args[0]);
     }
 
+    //Compare multiple dirs
+    if args.len() > 1 {
+        let dirs = args.iter().map(|str| Path::new(str)).collect();
+        let lists = create_lists(&dirs);
+        compare(lists);
+    }
+
 }
 
 #[derive(Debug)]
@@ -62,7 +68,73 @@ struct Md5Entry {
     md5sum: String
 }
 
-/*  fn lookup_(checklist: &String, dir: &String) {
+//https://docs.rs/same-file/1.0.6/same_file/fn.is_same_file.html
+fn create_lists(dirs: &Vec<&Path>) -> /* Vec::<Vec::<Md5Entry>> */ Vec::<HashMap::<String,String>> {
+    let mut lists = Vec::with_capacity(dirs.len());
+    for dir in dirs {
+        //let mut files: Vec::<Md5Entry> = vec!();
+        let mut files = HashMap::new();
+
+        traverser(dir, &mut |path: &Path| {
+            let md5 = md5_file(path).unwrap();
+
+            let rel_path = diff_paths(path,dir).unwrap();
+            files.insert(rel_path.to_str().unwrap().to_owned(), md5);
+            /*
+            files.push(Md5Entry {
+                path: path.to_str().unwrap().to_owned(),
+                md5sum: md5
+            });
+            */
+        }).expect("Something went wrong traversing the directories.");
+        lists.push(files);
+    }
+
+    return lists;
+
+}
+
+///Compare multiple filelists
+fn compare(lists: Vec::<HashMap::<String,String>>) {
+    
+    //All files already compared
+    let mut compared = vec!();
+    
+    for files in &lists {
+        for (path, md5) in files {
+            //Don't compare stuff twice
+            if compared.iter().any(|path_: &String| path_ == path) {continue};
+
+            let mut different = false;
+            let mut hashes = vec!();
+
+            for files_ in &lists {
+                match files_.get(path) {
+                    Some(hash) => {
+                        hashes.push(hash.to_owned());
+                        if hash != md5 {
+                            different = true;
+                        }
+                    },
+                    None => {
+                        different = true;
+                        hashes.push("non-exist".to_owned())
+                    }
+                };
+            }
+            
+            if different {
+                println!("{} ({})", path, hashes.join(" | "));
+            }
+
+            //If I could make this a reference things would be more memory efficient
+            compared.push(path.to_owned());
+        }
+    }
+
+}
+
+/*fn lookup_(checklist: &String, dir: &String) {
     let checklist = Path::new(checklist);
     let path = Path::new(dir);
 
@@ -83,7 +155,10 @@ struct Md5Entry {
 
     let checklist = get_checklist(path).collect();
 
-} */
+    //traverse dir
+    //compare md5
+
+}*/
 
 fn get_checklist<P: AsRef<Path>>(path: P) -> impl Iterator<Item = Md5Entry> {
 
@@ -143,10 +218,11 @@ fn make(dir: &String) {
         println!("{} {}", md5sum, path.canonicalize().unwrap().display());
     }
 
-    traverser(Path::new(dir), &callback).expect("Something went wrong traversing directories");
+    traverser(Path::new(dir), &mut callback).expect("Something went wrong traversing directories");
 }
 
-fn traverser(path: &Path, cb: &Fn(&Path)) -> Result<(),io::Error> {
+///Traverses a path and runs the provided callback for each file
+fn traverser(path: &Path, cb: &mut impl FnMut(&Path)) -> Result<(),io::Error> {
 
     if !path.exists() {
         println!("Directory {} does not exist", path.to_str().unwrap());
@@ -175,10 +251,20 @@ fn traverser(path: &Path, cb: &Fn(&Path)) -> Result<(),io::Error> {
     Ok(())
 }
 
+/*
+Currently this always returns a string.
+It returns "deteled" when a file is deleted.
+In the future it's probably better if instead it returns an enum instead.
+*/
 fn md5_file<P: AsRef<Path>>(path: P) -> Result<String, io::Error> {
     let mut hasher = Md5::new();
-    let mut f = File::open(path).expect("Error opening file");
+    let f = File::open(path);
     let mut buffer: [u8; 1024] = [0; 1024];
+
+    let mut f = match f {
+        Ok(file) => file,
+        Err(_file) => return Ok("deleted".to_owned())
+    };
 
     loop {
         let count = f.read(&mut buffer)?;

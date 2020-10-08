@@ -5,9 +5,9 @@ A cli program that lets you create a checksum list of all files in a directory, 
 ### Done
 * Creating checklist
 * Verifying checklist
+* Matching multiple folders against each other
 
 ### ToDo
 * Verify folder with checklist as lookup
-* Matching 2 folders against each other
 
 And I still have to split the program into multiple modules
