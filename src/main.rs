@@ -18,6 +18,7 @@ use md5::{Md5, Digest};
 use std::io::BufRead;
 use std::collections::HashMap;
 use pathdiff::diff_paths;
+use std::process::exit;
 
 fn main() {
     //let args: Vec<String> = env::args().skip(1).collect();
@@ -35,7 +36,7 @@ fn main() {
     //Show help
     if args.len() == 0 {
         println!("You forgot to mention a file");
-        std::process::exit(1);
+        exit(1);
     }
 
     // Run md5s
@@ -50,7 +51,13 @@ fn main() {
 
     //Compare multiple dirs
     if args.len() > 1 {
-        let dirs = args.iter().map(|str| Path::new(str)).collect();
+        let dirs: Vec::<&Path> = args.iter().map(|str| Path::new(str)).collect();
+        for dir in dirs.iter() {
+            if dir.is_file() {
+                println!("Currently comparing files directly isn't supported");
+                exit(1);
+            }
+        }
         let lists = create_lists(&dirs);
         compare(lists);
     }
@@ -72,7 +79,6 @@ fn create_lists(dirs: &Vec<&Path>) -> Vec::<HashMap::<String,String>> {
         traverser(dir, &mut |path: &Path| {
             let md5 = md5_file(path).unwrap();
             let mut rel_path = diff_paths(path,dir).unwrap();
-            if rel_path.to_str().unwrap() == "" {rel_path = dir.to_path_buf();}
             files.insert(rel_path.to_str().unwrap().to_owned(), md5);
         }).expect("Something went wrong traversing the directories.");
         lists.push(files);
@@ -133,7 +139,7 @@ fn get_checklist<P: AsRef<Path>>(path: P) -> impl Iterator<Item = Md5Entry> {
         
         if line_split.len() != 2 {
             println!("Invalid checksum file");
-            std::process::exit(1);
+            exit(1);
         }
 
         let old_checksum = line_split[0];
@@ -151,12 +157,12 @@ fn check_mode(dir: &String) {
     
     if !path.exists() {
         println!("File {} does not exist", dir);
-        std::process::exit(1);
+        exit(1);
     }
 
     if !path.is_file() {
         println!("{} is a directory", dir);
-        std::process::exit(1);
+        exit(1);
     }
     
     for checksum in get_checklist(path) {
@@ -188,7 +194,7 @@ fn traverser(path: &Path, cb: &mut impl FnMut(&Path)) -> Result<(),io::Error> {
 
     if !path.exists() {
         println!("Directory {} does not exist", path.to_str().unwrap());
-        std::process::exit(1);
+        exit(1);
     }
     
     if path.is_dir() {
