@@ -52,14 +52,21 @@ fn main() {
     //Compare multiple dirs
     if args.len() > 1 {
         let dirs: Vec::<&Path> = args.iter().map(|str| Path::new(str)).collect();
-        for dir in dirs.iter() {
-            if dir.is_file() {
-                println!("Currently comparing files directly isn't supported");
+
+        //Check for files instead of folders
+        if dirs.iter().any(|dir| dir.is_file()) {
+            if dirs.iter().all(|dir| dir.is_file()) {
+                compare_single_files(dirs)
+            } else {
+                println!("Cannot compare folders to files");
                 exit(1);
             }
         }
-        let lists = create_lists(&dirs);
-        compare(lists);
+        
+        else {
+            let lists = create_lists(&dirs);
+            compare(lists);
+        }
     }
 
 }
@@ -70,6 +77,37 @@ struct Md5Entry {
     md5sum: String
 }
 
+fn compare_single_files(files: Vec<&Path>) {
+
+    let mut hashes: Vec::<String> = vec!();
+    let mut different = false;
+
+    for file in &files {
+        if !file.exists() {
+            println!("File {} doesn't exist", file.to_str().unwrap());
+            exit(1);
+        }
+
+        let hash = md5_file(file).unwrap();
+        
+        if let Some(prev_hash) = hashes.last() {
+            if prev_hash != &hash {
+                different = true;
+            }
+        }
+
+        hashes.push(hash);
+    }
+    
+    if different {
+        println!("{} ({})",
+            files.iter().map(|path| path.file_name().unwrap().to_str().unwrap()).collect::<Vec<&str>>().join(","),
+            hashes.join(" | ")
+        );
+    }
+
+}
+
 fn create_lists(dirs: &Vec<&Path>) -> Vec::<HashMap::<String,String>> {
     let mut lists = Vec::with_capacity(dirs.len());
     for dir in dirs {
@@ -78,7 +116,7 @@ fn create_lists(dirs: &Vec<&Path>) -> Vec::<HashMap::<String,String>> {
 
         traverser(dir, &mut |path: &Path| {
             let md5 = md5_file(path).unwrap();
-            let mut rel_path = diff_paths(path,dir).unwrap();
+            let rel_path = diff_paths(path,dir).unwrap();
             files.insert(rel_path.to_str().unwrap().to_owned(), md5);
         }).expect("Something went wrong traversing the directories.");
         lists.push(files);
