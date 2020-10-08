@@ -38,17 +38,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    //This isn't actually used yet, will prob get removed later
-    //Instead this vector will only get filled when reading existing checksum lists, then used as an iter.
-    //let md5s = Vec::new();
-
-    //https://docs.rs/same-file/1.0.6/same_file/fn.is_same_file.html
-
     // Run md5s
     if args.len() == 1 && !check {
         make(&args[0]);
     }
 
+    // Checklist check
     if args.len() == 1 && check {
         check_mode(&args[0]);
     }
@@ -68,24 +63,17 @@ struct Md5Entry {
     md5sum: String
 }
 
-//https://docs.rs/same-file/1.0.6/same_file/fn.is_same_file.html
-fn create_lists(dirs: &Vec<&Path>) -> /* Vec::<Vec::<Md5Entry>> */ Vec::<HashMap::<String,String>> {
+fn create_lists(dirs: &Vec<&Path>) -> Vec::<HashMap::<String,String>> {
     let mut lists = Vec::with_capacity(dirs.len());
     for dir in dirs {
-        //let mut files: Vec::<Md5Entry> = vec!();
+
         let mut files = HashMap::new();
 
         traverser(dir, &mut |path: &Path| {
             let md5 = md5_file(path).unwrap();
-
-            let rel_path = diff_paths(path,dir).unwrap();
+            let mut rel_path = diff_paths(path,dir).unwrap();
+            if rel_path.to_str().unwrap() == "" {rel_path = dir.to_path_buf();}
             files.insert(rel_path.to_str().unwrap().to_owned(), md5);
-            /*
-            files.push(Md5Entry {
-                path: path.to_str().unwrap().to_owned(),
-                md5sum: md5
-            });
-            */
         }).expect("Something went wrong traversing the directories.");
         lists.push(files);
     }
@@ -133,32 +121,6 @@ fn compare(lists: Vec::<HashMap::<String,String>>) {
     }
 
 }
-
-/*fn lookup_(checklist: &String, dir: &String) {
-    let checklist = Path::new(checklist);
-    let path = Path::new(dir);
-
-    if !checklist.exists() {
-        println!("File {} does not exist", dir);
-        std::process::exit(1);
-    }
-
-    if !path.exists() {
-        println!("File {} does not exist", dir);
-        std::process::exit(1);
-    }
-
-    if !checklist.is_file() {
-        println!("{} is a directory", dir);
-        std::process::exit(1);
-    }
-
-    let checklist = get_checklist(path).collect();
-
-    //traverse dir
-    //compare md5
-
-}*/
 
 fn get_checklist<P: AsRef<Path>>(path: P) -> impl Iterator<Item = Md5Entry> {
 
