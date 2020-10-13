@@ -25,13 +25,19 @@ fn main() {
     let mut args = vec![];
     
     let mut check = false;
+    let mut relative = false;
 
     for argument in  env::args().skip(1) {
         match argument.as_str() {
-            "--check" => check = true,
+            "--check" | "-c" => check = true,
+            "--relative" | "-r" => relative = true,
             _ => args.push(argument)
         }
     }
+    
+    //Make immutable again
+    let check = check;
+    let relative = relative;
 
     //Show help
     if args.len() == 0 {
@@ -41,7 +47,7 @@ fn main() {
 
     // Run md5s
     if args.len() == 1 && !check {
-        make(&args[0]);
+        make_checklist(&args[0], relative);
     }
 
     // Checklist check
@@ -216,13 +222,17 @@ fn check_mode(dir: &String) {
 
 }
 
-fn make(dir: &String) {
+fn make_checklist(dir: &String, relative: bool) {
 
-    fn callback(path: &Path) {
+    let mut callback = |path: &Path| {
         let md5sum = md5_file(path).expect("Something went wrong creating md5sum");
         //canonicalize also resolves links which we don't want but whatever
-        println!("{} {}", md5sum, path.canonicalize().unwrap().display());
-    }
+        if relative {
+            println!("{} {}", md5sum, "./".to_owned() + diff_paths(path, Path::new(dir)).unwrap().to_str().unwrap());
+        } else {
+            println!("{} {}", md5sum, path.canonicalize().unwrap().display());
+        }
+    };
 
     traverser(Path::new(dir), &mut callback).expect("Something went wrong traversing directories");
 }
