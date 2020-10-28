@@ -7,7 +7,7 @@ There should also be a way to go to a directory, then use a checksum list like a
 This ensures that you will also list any deleted or created directories.
 */
 
-//TODO: relative paths
+//CRC32,MurmurHash
 
 use std::env;
 use std::path::Path;
@@ -179,9 +179,9 @@ fn get_checklist<P: AsRef<Path>>(path: P) -> impl Iterator<Item = Md5Entry> {
     
     f.lines().map(|line| {
         let line = line.unwrap();
-        let line_split: Vec<&str> = line.split_whitespace().collect();
+        let line_split: Vec<&str> = line.splitn(2," ").collect();
         
-        if line_split.len() != 2 {
+        if line_split.len() < 2 {
             println!("Invalid checksum file");
             exit(1);
         }
@@ -269,7 +269,7 @@ fn traverser(path: &Path, cb: &mut impl FnMut(&Path)) -> Result<(),io::Error> {
 
 /*
 Currently this always returns a string.
-It returns "deteled" when a file is deleted.
+It returns "deleted" when a file is deleted.
 In the future it's probably better if instead it returns an enum instead.
 */
 fn md5_file<P: AsRef<Path>>(path: P) -> Result<String, io::Error> {
